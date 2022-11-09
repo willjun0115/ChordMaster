@@ -18,7 +18,7 @@ sus_tones = ['', '2', '4']
 guitar_tunes = ['E4', 'B3', 'G3', 'D3', 'A2', 'E2']
 
 
-def play_file(filename: str, extension: str = 'wav'):
+def playfile(filename: str, extension: str = 'wav'):
     try:
         file = mixer.Sound(f'soundbank/{filename}.{extension}')
         mixer.find_channel(True).play(file)
@@ -288,8 +288,8 @@ class Player(Tk):
         mb.add_cascade(label='설정', menu=setting)
 
         sounds = Menu(mb, tearoff=0)
-        sounds.add_command(label='키올림', command=self.key_up)
-        sounds.add_command(label='키내림', command=self.key_down)
+        sounds.add_command(label='키올림', command=lambda: self.change_key(1))
+        sounds.add_command(label='키내림', command=lambda: self.change_key(-1))
         sounds.add_separator()
         sounds.add_command(label='재생', command=self.play_queue_init)
         sounds.add_command(label='중지', command=self.stop_queue)
@@ -308,8 +308,8 @@ class Player(Tk):
         # control bar
         self.ctrl_bar = Frame(self, height=1)
         self.ctrl_bar.grid(row=0, column=0, columnspan=10)
-        self.b_keyup = Button(self.ctrl_bar, text='반음 올림', height=1, width=8, command=self.key_up)
-        self.b_keydown = Button(self.ctrl_bar, text='반음 내림', height=1, width=8, command=self.key_down)
+        self.b_keyup = Button(self.ctrl_bar, text='반음 올림', height=1, width=8, command=lambda: self.change_key(1))
+        self.b_keydown = Button(self.ctrl_bar, text='반음 내림', height=1, width=8, command=lambda: self.change_key(-1))
         self.b_keyup.grid(row=0, column=0)
         self.b_keydown.grid(row=0, column=1)
         self.b_play = Button(self.ctrl_bar, text='▶', height=1, width=3, command=self.play_queue_init)
@@ -451,7 +451,7 @@ class Player(Tk):
         plus_button.grid(row=0, column=10)
         result_label.grid(row=1, column=0, columnspan=11)
 
-    # Fretboard Simulator Toplevel
+    # Guitar Fretboard Simulator Toplevel
     def fretboard_simulator(self):
 
         fretbuttons = [[], [], [], [], [], []]  # radiobuttons of fretboard
@@ -592,7 +592,7 @@ class Player(Tk):
                 k = white_keys[j]
                 pitch = k + str(i)
                 key_button = Button(
-                    keyboard, width=1, height=5, text=pitch,
+                    keyboard, width=1, height=5, text=pitch, bg='white', activebackground='gray',
                     command=lambda pitch=pitch: self.play_notes([pitch], 0, 100, inst="piano")
                 )
                 key_button.grid(row=0, column=2*(j+(i-4)*7), rowspan=2, columnspan=2)
@@ -602,7 +602,7 @@ class Player(Tk):
                 if k:
                     pitch = k + str(i)
                     key_button = Button(
-                        keyboard, width=1, height=3, text=pitch,
+                        keyboard, width=1, height=3, text=pitch, bg='black', activebackground='gray',
                         command=lambda pitch=pitch: self.play_notes([pitch], 0, 100, inst="piano")
                     )
                     key_button.grid(row=0, column=2 * (j + (i - 4) * 7) + 1, rowspan=1, columnspan=2)
@@ -659,49 +659,30 @@ class Player(Tk):
     # play notes in list recursively
     def play_notes(self, notes: list, n: int, delay: int, inst='piano'):
         try:
-            play_file(f"{inst}/{notes[n]}", 'wav')
+            playfile(f"{inst}/{notes[n]}", 'wav')
         except: pass
         finally:
             root.after(delay, lambda: self.play_notes(notes, n+1, delay, inst=inst))
 
-    # raise a key(semitone) of all Chord in queue
-    def key_up(self):
+    # change key of all Chord in queue by k
+    def change_key(self, k: int):
         self.update_queue()
         q = []
         for c in self.queue:
             if type(c) is Chord:
-                n = keys.index(c.key)
-                i = None
+                i = keys.index(c.key)
+                inv = None
                 if c.inversion:
-                    i = keys[keys.index(c.inversion) - 11]
-                q.append(Chord(keys[n-11], c.harmonic, c.sus_tone, c.add_tone, i))
+                    inv = keys[(keys.index(c.inversion) + k) % 12]
+                q.append(Chord(keys[(i+k) % 12], c.harmonic, c.sus_tone, c.add_tone, inv))
             elif c == 'x':
                 q.append('x')
             elif c == '-':
                 q.append(None)
         self.queue = q
-        if self.root_key.get():
-            self.root_key.set(keys[(keys.index(self.root_key.get()) + 1) % 12])
-        self.update_text()
-
-    # # lower a key(semitone) of all Chord in queue
-    def key_down(self):
-        self.update_queue()
-        q = []
-        for c in self.queue:
-            if type(c) is Chord:
-                n = keys.index(c.key)
-                i = None
-                if c.inversion:
-                    i = keys[keys.index(c.inversion) - 1]
-                q.append(Chord(keys[n-1], c.harmonic, c.sus_tone, c.add_tone, i))
-            elif c == 'x':
-                q.append('x')
-            elif c == '-':
-                q.append(None)
-        self.queue = q
-        if self.root_key.get():
-            self.root_key.set(keys[(keys.index(self.root_key.get()) - 1) % 12])
+        r_key = self.root_key.get()
+        if r_key:
+            self.root_key.set(keys[(keys.index(r_key) + k) % 12])
         self.update_text()
 
     # update text from queue
