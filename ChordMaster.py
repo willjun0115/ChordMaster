@@ -10,7 +10,7 @@ intervals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
 pitches = []
 for i in range(2, 6):
     pitches += [k + str(i) for k in keys]
-guitar_pitches = pitches[:41]
+guitar_pitches = pitches[:pitches.index('F5')+1]  # C2 ~ F5
 harmonics = ['', 'm', 'dim', 'aug', '7', 'M7', 'm7', 'mM7', 'dim7', 'm7(b5)', '6', 'm6', '5']
 add_tones = ['', '2', '9', '11', '13']
 sus_tones = ['', '2', '4']
@@ -22,7 +22,7 @@ def playfile(filename: str, extension: str = 'wav'):
     try:
         file = mixer.Sound(f'soundbank/{filename}.{extension}')
         mixer.find_channel(True).play(file)
-    except: pass
+    except: messagebox.showerror('Error', f"Failed to play file '{filename}.{extension}'")
 
 
 def form_chord_in_piano(notes: list, octave: int = 4):
@@ -643,7 +643,8 @@ class Player(Tk):
                     mixer.stop()
             except self.queue == []:
                 pass
-            except: self.stop_queue()
+            except:
+                self.stop_queue()
             finally:
                 root.after(delay, lambda: self.play_queue(n+1, delay))
 
