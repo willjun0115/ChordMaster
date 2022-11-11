@@ -20,22 +20,6 @@ sus_tones = ['', '2', '4']
 guitar_tunes = ['E4', 'B3', 'G3', 'D3', 'A2', 'E2']
 
 
-def playfile(filename: str, extension: str = 'wav'):
-    try:
-        file = mixer.Sound(f'soundbank/{filename}.{extension}')
-        mixer.find_channel(True).play(file)
-    except: messagebox.showerror('Error', f"Failed to play file '{filename}.{extension}'")
-
-
-def form_chord_in_piano(notes: list, octave: int = 4):
-    chord_form = [notes[0] + str(octave), ]
-    for n in range(1, len(notes)):
-        if keys.index(notes[n]) < keys.index(notes[n-1]):
-            octave += 1
-        chord_form.append(notes[n] + str(octave))
-    return chord_form
-
-
 class Note:
     def __init__(self, key: str):
         if len(key) > 1 and key[1] == 'b':
@@ -123,9 +107,8 @@ class Chord:
         if self.harmonic == '5':
             self.inversion = None
         else:
-            if inversion and len(inversion) > 1 and inversion[1] == 'b':
-                n_ = keys.index(inversion[0])
-                self.inversion = keys[n_ - 1]
+            if inversion:
+                self.inversion = str(Note(inversion))
             else:
                 self.inversion = inversion
 
@@ -134,8 +117,6 @@ class Chord:
         note_list = [root_note]
         if self.inversion:
             note_list.insert(0, Note(self.inversion))
-
-        r = keys.index(self.key)  # root note
 
         if self.harmonic == '':
             note_list.append(root_note.get_interval(3, 'Major'))  # major 3rd
@@ -201,8 +182,8 @@ class Chord:
             note_list.append(root_note.get_interval(13, 'Major'))  # major 13th
 
         for note in note_list:
-            if str(note) not in self.notes:
-                self.notes.append(str(note))
+            if note not in self.notes:
+                self.notes.append(note)
 
     def __str__(self):
         c_name = self.key + self.harmonic
@@ -224,14 +205,6 @@ class Chord:
             chord_name += self.harmonic
         return mode, chord_name
 
-    def sus(self, tone):
-        if tone in sus_tones[1:] and self.harmonic in ['', '7', 'M7']:
-            self.sus_tone = tone
-
-    def add(self, tone):
-        if tone in add_tones[1:] and self.harmonic not in ['aug', 'dim', 'dim7', '5']:
-            self.add_tone = tone
-
 
 chords = []  # all possible chords (except for inversion)
 for key in keys:
@@ -245,6 +218,15 @@ for key in keys:
         if harmonic not in ['aug', 'dim', 'dim7', '5']:
             for add in add_tones[1:]:
                 chords.append(Chord(key, harmonic, add_tone=add))
+
+
+def form_chord_in_piano(notes: list[Note], octave: int = 4):
+    chord_form = [PitchedNote(notes[0].key, octave), ]
+    for n in range(1, len(notes)):
+        if keys.index(notes[n]) < keys.index(notes[n-1]):
+            octave += 1
+        chord_form.append(PitchedNote(notes[n].key, octave))
+    return chord_form
 
 
 def key_to_interval(chord_lst: list[Chord], root_chord: Chord = None):
@@ -269,7 +251,7 @@ def key_to_interval(chord_lst: list[Chord], root_chord: Chord = None):
     return interval_lst
 
 
-def find_chord(notes: list[str]):
+def find_chord(notes: list):
     r = notes[0]
     note_lst = []
     for note in notes:
@@ -283,7 +265,7 @@ def find_chord(notes: list[str]):
         if chord.key != r:
             chord = Chord(chord.key, chord.harmonic, chord.sus_tone, chord.add_tone, inversion=r)
         for n in note_lst:
-            if n in chord.notes:
+            if n in [str(note) for note in chord.notes]:
                 cnt += 1
         if cnt == len(note_lst):
             if cnt == len(chord.notes):
@@ -446,7 +428,7 @@ class Player(Tk):
             chord = Chord(
                 chord_vars[0].get(), chord_vars[1].get(), chord_vars[2].get(), chord_vars[3].get(), chord_vars[4].get()
             )
-            note_list = chord.notes
+            note_list = [str(note) for note in chord.notes]
             notes_txt.set(str(chord) + ': ' + ' '.join(note_list))
 
         # play chord from the searched notes
@@ -548,8 +530,8 @@ class Player(Tk):
                     tunes.append(tune)
                     open_fret = tunes[i]
                     n = keys.index(open_fret[0:-1]) + selected_frets[i].get()
-                    key = keys[n % 12] + str(int(open_fret[-1]) + n // 12)
-                    notes.append(key)
+                    note = PitchedNote(keys[n % 12], int(open_fret[-1]) + n // 12)
+                    notes.append(note)
                 else:
                     tunes.append(None)
             notes.reverse()
@@ -566,7 +548,7 @@ class Player(Tk):
                     tunes.append(tune)
                     open_fret = tunes[i]
                     n = keys.index(open_fret[0:-1]) + selected_frets[i].get()
-                    key = keys[n % 12]
+                    key = (keys[n % 12])
                     notes.append(key)
                 else:
                     tunes.append(None)
@@ -645,7 +627,7 @@ class Player(Tk):
 
         # key bindings
         for i in range(0, 36):
-            pitch = keys[i % 12] + str(i // 12 + 4)
+            pitch = PitchedNote(keys[i % 12], i // 12 + 4)
             window.bind(keybinds[i], lambda event, pitch=pitch: self.play_notes([pitch], 0, 100, inst="piano"))
 
         keyboard = Frame(window)
@@ -653,9 +635,9 @@ class Player(Tk):
         for i in range(4, 7):
             for j in range(0, 7):
                 k = white_keys[j]
-                pitch = k + str(i)
+                pitch = PitchedNote(k, i)
                 key_button = Button(
-                    keyboard, width=1, height=5, text=pitch, bg='white', activebackground='gray',
+                    keyboard, width=1, height=5, text=str(pitch), bg='white', activebackground='gray',
                     command=lambda pitch=pitch: self.play_notes([pitch], 0, 100, inst="piano")
                 )
                 key_button.grid(row=0, column=2*(j+(i-4)*7), rowspan=2, columnspan=2)
@@ -663,9 +645,9 @@ class Player(Tk):
             for j in range(0, 7):
                 k = black_keys[j]
                 if k:
-                    pitch = k + str(i)
+                    pitch = PitchedNote(k, i)
                     key_button = Button(
-                        keyboard, width=1, height=3, text=pitch, bg='black', activebackground='gray',
+                        keyboard, width=1, height=3, text=str(pitch), bg='black', activebackground='gray',
                         command=lambda pitch=pitch: self.play_notes([pitch], 0, 100, inst="piano")
                     )
                     key_button.grid(row=0, column=2 * (j + (i - 4) * 7) + 1, rowspan=1, columnspan=2)
@@ -720,12 +702,14 @@ class Player(Tk):
         self.play_notes(notes, 0, delay, inst=inst)
 
     # play notes in list recursively
-    def play_notes(self, notes: list, n: int, delay: int, inst='piano'):
+    def play_notes(self, notes: list[PitchedNote], n: int, delay: int, inst='piano'):
         try:
-            playfile(f"{inst}/{notes[n]}", 'wav')
-        except: pass
-        finally:
-            root.after(delay, lambda: self.play_notes(notes, n+1, delay, inst=inst))
+            notes[n].play(inst=inst)
+        except: messagebox.showerror('Error', f"Failed to play file '{notes[n]}.wav'")
+        else:
+            n += 1
+            if n < len(notes):
+                root.after(delay, lambda: self.play_notes(notes, n, delay, inst=inst))
 
     # change key of all Chord in queue by k
     def change_key(self, k: int):
