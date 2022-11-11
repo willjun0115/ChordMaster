@@ -7,6 +7,8 @@ from tkinter import messagebox, font
 
 keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 intervals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
+major_scale = [0, 2, 4, 5, 7, 9, 11]
+minor_scale = [0, 2, 3, 5, 7, 8, 10]
 pitches = []
 for i in range(2, 6):
     pitches += [k + str(i) for k in keys]
@@ -34,12 +36,70 @@ def form_chord_in_piano(notes: list, octave: int = 4):
     return chord_form
 
 
-class Chord:
-    def __init__(self, key, harmonic, sus_tone=None, add_tone=None, inversion=None):
+class Note:
+    def __init__(self, key: str):
         if len(key) > 1 and key[1] == 'b':
-            self.key = keys[keys.index(key[0])-1]
+            self.key = keys[keys.index(key[0]) - 1]
         else:
             self.key = key
+
+    def __str__(self):
+        return self.key
+
+    def __add__(self, n: int):
+        i = keys.index(self.key)
+        key = keys[(i + n) % 12]
+        return Note(key)
+
+    def __sub__(self, n: int):
+        i = keys.index(self.key)
+        key = keys[(i - n) % 12]
+        return Note(key)
+
+    def get_interval(self, i: int, mode: str = 'Major'):
+        r = keys.index(self.key)
+        if i > 0:
+            n = (i - 1) % 7
+        else:
+            n = i % 7
+        if mode in ['MAJOR', 'Major', 'Maj', 'major']:
+            return Note(keys[(r + major_scale[n]) % 12])
+        elif mode in ['minor', 'm']:
+            return Note(keys[(r + minor_scale[n]) % 12])
+        elif mode in ['perfect'] and n in [0, 3, 4]:
+            return Note(keys[(r + major_scale[n]) % 12])
+
+
+class PitchedNote(Note):
+    def __init__(self, key, pitch: int):
+        Note.__init__(self, key)
+        self.pitch = pitch
+
+    def __str__(self):
+        return self.key + str(self.pitch)
+
+    def __add__(self, n: int):
+        key = str(super().__add__(n))
+        pitch = self.pitch
+        if keys.index(key) < keys.index(self.key):
+            pitch += 1
+        return PitchedNote(key, pitch)
+
+    def __sub__(self, n: int):
+        key = str(super().__sub__(n))
+        pitch = self.pitch
+        if keys.index(key) > keys.index(self.key):
+            pitch -= 1
+        return PitchedNote(key, pitch)
+
+    def play(self, inst='piano'):
+        file = mixer.Sound(f'soundbank/{inst}/{str(self)}.wav')
+        mixer.find_channel(True).play(file)
+
+
+class Chord:
+    def __init__(self, key, harmonic: str, sus_tone=None, add_tone=None, inversion=None):
+        self.key = str(Note(key))
 
         if harmonic in ['Maj7', 'maj7', '7M']:
             self.harmonic = 'M7'
@@ -69,80 +129,80 @@ class Chord:
             else:
                 self.inversion = inversion
 
-        self.notes = [] # notes list
+        self.notes = []  # notes list
+        root_note = Note(self.key)
+        note_list = [root_note]
         if self.inversion:
-            note_list = [self.inversion, self.key]
-        else:
-            note_list = [self.key]
+            note_list.insert(0, Note(self.inversion))
 
         r = keys.index(self.key)  # root note
 
         if self.harmonic == '':
-            note_list.append(keys[(r + 4) % 12])  # major 3rd
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
+            note_list.append(root_note.get_interval(3, 'Major'))  # major 3rd
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
         elif self.harmonic == 'm':
-            note_list.append(keys[(r + 3) % 12])  # minor 3rd
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
+            note_list.append(root_note.get_interval(3, 'minor'))  # minor 3rd
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
         elif self.harmonic == 'dim':
-            note_list.append(keys[(r + 3) % 12])  # minor 3rd
-            note_list.append(keys[(r + 6) % 12])  # diminished 5th
+            note_list.append(root_note.get_interval(3, 'minor'))  # minor 3rd
+            note_list.append(root_note.get_interval(5, 'perfect') - 1)  # diminished 5th
         elif self.harmonic == 'aug':
-            note_list.append(keys[(r + 4) % 12])  # major 3rd
-            note_list.append(keys[(r + 8) % 12])  # augmented 5th
+            note_list.append(root_note.get_interval(3, 'Major'))  # major 3rd
+            note_list.append(root_note.get_interval(5, 'perfect') + 1)  # augmented 5th
         elif self.harmonic == '7':
-            note_list.append(keys[(r + 4) % 12])  # major 3rd
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
-            note_list.append(keys[(r + 10) % 12])  # minor 7th
+            note_list.append(root_note.get_interval(3, 'Major'))  # major 3rd
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
+            note_list.append(root_note.get_interval(7, 'minor'))  # minor 7th
         elif self.harmonic == 'm7':
-            note_list.append(keys[(r + 3) % 12])  # minor 3rd
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
-            note_list.append(keys[(r + 10) % 12])  # minor 7th
+            note_list.append(root_note.get_interval(3, 'minor'))  # minor 3rd
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
+            note_list.append(root_note.get_interval(7, 'minor'))  # minor 7th
         elif self.harmonic == 'M7':
-            note_list.append(keys[(r + 4) % 12])  # major 3rd
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
-            note_list.append(keys[(r + 11) % 12])  # major 7th
+            note_list.append(root_note.get_interval(3, 'Major'))  # major 3rd
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
+            note_list.append(root_note.get_interval(7, 'Major'))  # major 7th
         elif self.harmonic == 'mM7':
-            note_list.append(keys[(r + 3) % 12])  # minor 3rd
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
-            note_list.append(keys[(r + 11) % 12])  # major 7th
+            note_list.append(root_note.get_interval(3, 'minor'))  # minor 3rd
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
+            note_list.append(root_note.get_interval(7, 'Major'))  # major 7th
         elif self.harmonic == 'dim7':
-            note_list.append(keys[(r + 3) % 12])  # minor 3rd
-            note_list.append(keys[(r + 6) % 12])  # diminished 5th
-            note_list.append(keys[(r + 9) % 12])  # diminished 7th
+            note_list.append(root_note.get_interval(3, 'minor'))  # minor 3rd
+            note_list.append(root_note.get_interval(5, 'perfect') - 1)  # diminished 5th
+            note_list.append(root_note.get_interval(7, 'minor') - 1)  # diminished 7th
         elif self.harmonic == 'm7(b5)':
-            note_list.append(keys[(r + 3) % 12])  # minor 3rd
-            note_list.append(keys[(r + 6) % 12])  # diminished 5th
-            note_list.append(keys[(r + 10) % 12])  # minor 7th
+            note_list.append(root_note.get_interval(3, 'minor'))  # minor 3rd
+            note_list.append(root_note.get_interval(5, 'perfect') - 1)  # diminished 5th
+            note_list.append(root_note.get_interval(7, 'minor'))  # minor 7th
         elif self.harmonic == '6':
-            note_list.append(keys[(r + 4) % 12])  # major 3rd
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
-            note_list.append(keys[(r + 9) % 12])  # major 6th
+            note_list.append(root_note.get_interval(3, 'Major'))  # major 3rd
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
+            note_list.append(root_note.get_interval(6, 'Major'))  # major 6th
         elif self.harmonic == 'm6':
-            note_list.append(keys[(r + 3) % 12])  # minor 3rd
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
-            note_list.append(keys[(r + 9) % 12])  # major 6th
+            note_list.append(root_note.get_interval(3, 'minor'))  # minor 3rd
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
+            note_list.append(root_note.get_interval(6, 'Major'))  # major 6th
         elif self.harmonic == '5':
-            note_list.append(keys[(r + 7) % 12])  # perfect 5th
+            note_list.append(root_note.get_interval(5, 'perfect'))  # perfect 5th
 
         if self.sus_tone == '2':
             note_list.remove(note_list[1])
-            note_list.insert(1, keys[(r + 2) % 12])  # major 2nd
+            note_list.insert(1, root_note.get_interval(2, 'Major'))  # major 2nd
         elif self.sus_tone == '4':
             note_list.remove(note_list[1])
-            note_list.insert(1, keys[(r + 5) % 12])  # perfect 4th
+            note_list.insert(1, root_note.get_interval(4, 'perfect'))  # perfect 4th
 
         if self.add_tone == '2':
-            note_list.insert(1, keys[(r + 2) % 12])  # major 2nd
+            note_list.insert(1, root_note.get_interval(2, 'Major'))  # major 2nd
         elif self.add_tone == '9':
-            note_list.append(keys[(r + 14) % 12])  # major 9th
+            note_list.append(root_note.get_interval(9, 'Major'))  # major 9th
         elif self.add_tone == '11':
-            note_list.append(keys[(r + 17) % 12])  # perfect 11th
+            note_list.append(root_note.get_interval(11, 'perfect'))  # perfect 11th
         elif self.add_tone == '13':
-            note_list.append(keys[(r + 21) % 12])  # major 13th
+            note_list.append(root_note.get_interval(13, 'Major'))  # major 13th
 
         for note in note_list:
-            if note not in self.notes:
-                self.notes.append(note)
+            if str(note) not in self.notes:
+                self.notes.append(str(note))
 
     def __str__(self):
         c_name = self.key + self.harmonic
@@ -164,6 +224,14 @@ class Chord:
             chord_name += self.harmonic
         return mode, chord_name
 
+    def sus(self, tone):
+        if tone in sus_tones[1:] and self.harmonic in ['', '7', 'M7']:
+            self.sus_tone = tone
+
+    def add(self, tone):
+        if tone in add_tones[1:] and self.harmonic not in ['aug', 'dim', 'dim7', '5']:
+            self.add_tone = tone
+
 
 chords = []  # all possible chords (except for inversion)
 for key in keys:
@@ -183,12 +251,11 @@ def key_to_interval(chord_lst: list[Chord], root_chord: Chord = None):
     interval_lst = []
     if root_chord is None:
         root_chord = chord_lst[0]
-    interval_scale = []
     mode, h = root_chord.as_interval()
     if mode == 'Major':
-        interval_scale = [0, 2, 4, 5, 7, 9, 11]
+        interval_scale = major_scale
     else:
-        interval_scale = [0, 2, 3, 5, 7, 8, 10]
+        interval_scale = minor_scale
     for c in chord_lst[0:]:
         if c and type(c) == Chord:
             mode, h = c.as_interval()
@@ -666,11 +733,11 @@ class Player(Tk):
         q = []
         for c in self.queue:
             if type(c) is Chord:
-                i = keys.index(c.key)
+                r = keys.index(c.key)
                 inv = None
                 if c.inversion:
                     inv = keys[(keys.index(c.inversion) + k) % 12]
-                q.append(Chord(keys[(i+k) % 12], c.harmonic, c.sus_tone, c.add_tone, inv))
+                q.append(Chord(keys[(r+k) % 12], c.harmonic, c.sus_tone, c.add_tone, inv))
             elif c == 'x':
                 q.append('x')
             elif c == '-':
