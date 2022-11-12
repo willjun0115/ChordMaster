@@ -14,8 +14,8 @@ for i in range(2, 6):
     pitches += [k + str(i) for k in keys]
 guitar_pitches = pitches[:pitches.index('F5') + 1]  # C2 ~ F5
 harmonics = ['', 'm', 'dim', 'aug', '7', 'M7', 'm7', 'mM7', 'dim7', 'm7(b5)', '6', 'm6', '5']
-add_tones = ['', '2', '9', '11', '13']
-sus_tones = ['', '2', '4']
+sus_tones = [0, 2, 4]
+add_tones = [0, 2, 9, 11, 13]
 
 guitar_tunes = ['E4', 'B3', 'G3', 'D3', 'A2', 'E2']
 
@@ -97,7 +97,7 @@ class PitchedNote(Note):
 
 
 class Chord(Note):
-    def __init__(self, key, harmonic: str, sus_tone=None, add_tone=None, inversion: int = 0):
+    def __init__(self, key, harmonic: str, sus_tone: int = 0, add_tone: int = 0, inversion: int = 0):
         Note.__init__(self, key)
 
         if harmonic in ['Maj7', 'maj7', '7M']:
@@ -109,15 +109,16 @@ class Chord(Note):
         else:
             self.harmonic = harmonic
 
-        if self.harmonic in ['', '7', 'M7']:
+        if self.harmonic in ['', '7', 'M7'] and sus_tone in sus_tones:
             self.sus_tone = sus_tone
         else:
-            self.sus_tone = None
+            self.sus_tone = 0
 
-        if self.harmonic in ['aug', 'dim', 'dim7', '5']:
-            self.add_tone = None
-        else:
-            self.add_tone = add_tone
+        self.add_tone = 0
+        if self.harmonic not in ['aug', 'dim', 'dim7', '5']:
+            if add_tone in add_tones:
+                if not (sus_tone in [2, 4] and add_tone in [sus_tone, sus_tone+7]):
+                    self.add_tone = add_tone
 
         if self.harmonic == '5':
             self.inversion = 0
@@ -127,7 +128,7 @@ class Chord(Note):
             else:
                 self.inversion = 0
 
-        if harmonic.startswith('m'):
+        if harmonic.startswith('m') or harmonic.startswith('dim'):
             self.mode = 'minor'
         else:
             self.mode = 'Major'
@@ -183,21 +184,12 @@ class Chord(Note):
         elif self.harmonic == '5':
             note_list.append(self.root_note.get_interval(5, 'perfect'))  # perfect 5th
 
-        if self.sus_tone == '2':
+        if self.sus_tone > 0:
             note_list.remove(note_list[1])
-            note_list.insert(1, self.root_note.get_interval(2, 'Major'))  # major 2nd
-        elif self.sus_tone == '4':
-            note_list.remove(note_list[1])
-            note_list.insert(1, self.root_note.get_interval(4, 'perfect'))  # perfect 4th
+            note_list.insert(1, self.root_note.get_interval(self.sus_tone, 'Major'))
 
-        if self.add_tone == '2':
-            note_list.insert(1, self.root_note.get_interval(2, 'Major'))  # major 2nd
-        elif self.add_tone == '9':
-            note_list.append(self.root_note.get_interval(9, 'Major'))  # major 9th
-        elif self.add_tone == '11':
-            note_list.append(self.root_note.get_interval(11, 'perfect'))  # perfect 11th
-        elif self.add_tone == '13':
-            note_list.append(self.root_note.get_interval(13, 'Major'))  # major 13th
+        if self.add_tone > 0:
+            note_list.insert(1, self.root_note.get_interval(self.add_tone, 'Major'))
 
         if 0 < self.inversion < len(note_list):
             inversed_note = note_list[self.inversion]
@@ -210,10 +202,10 @@ class Chord(Note):
 
     def __str__(self):
         c_name = self.key + self.harmonic
-        if self.sus_tone:
-            c_name += 'sus' + self.sus_tone
-        if self.add_tone:
-            c_name += 'add' + self.add_tone
+        if self.sus_tone > 0:
+            c_name += 'sus' + str(self.sus_tone)
+        if self.add_tone > 0:
+            c_name += 'add' + str(self.add_tone)
         if self.inversion > 0:
             c_name += '/' + self.root_note.key
         return c_name
@@ -228,21 +220,22 @@ class IntervalChord(Chord):
         self.fundamental = fundamental
         self.semitone = (keys.index(key) - int(fundamental)) % 12
         rebased_key = keys[self.semitone]  # interval key with root C
-        Chord.__init__(self, rebased_key, harmonic, None, None, inversion)
+        Chord.__init__(self, rebased_key, harmonic, 0, 0, inversion)
         if fundamental.mode == 'minor':
             self.interval = minor_scale.index(self.semitone)
         else:
             self.interval = major_scale.index(self.semitone)
-        if self.mode == 'minor':
-            self.degree = intervals[self.interval].lower()
-        else:
-            self.degree = intervals[self.interval]
 
     def __str__(self):
+        c_name = ''
         if self.mode == 'minor':
-            c_name = self.degree + self.harmonic[1:]
+            c_name += intervals[self.interval].lower()
         else:
-            c_name = self.degree + self.harmonic
+            c_name = intervals[self.interval]
+        if self.harmonic.startswith('m'):
+            c_name += self.harmonic[1:]
+        else:
+            c_name += self.harmonic
         return c_name
 
 
@@ -254,7 +247,8 @@ for key in keys:
             for sus in sus_tones[1:]:
                 chords.append(Chord(key, harmonic, sus_tone=sus))
                 for add in add_tones[1:]:
-                    chords.append(Chord(key, harmonic, sus_tone=sus, add_tone=add))
+                    if add not in [sus, sus+7]:
+                        chords.append(Chord(key, harmonic, sus_tone=sus, add_tone=add))
         if harmonic not in ['aug', 'dim', 'dim7', '5']:
             for add in add_tones[1:]:
                 chords.append(Chord(key, harmonic, add_tone=add))
@@ -441,8 +435,8 @@ class Player(Tk):
         chord_vars = [StringVar(), StringVar(), StringVar(), StringVar(), StringVar()]
         chord_vars[0].set('C')  # key
         chord_vars[1].set('')  # harmonic
-        chord_vars[2].set('')  # sus tone
-        chord_vars[3].set('')  # add tone
+        chord_vars[2].set('0')  # sus tone
+        chord_vars[3].set('0')  # add tone
         chord_vars[4].set('0')  # inversion
 
         notes_txt = StringVar()
@@ -458,14 +452,16 @@ class Player(Tk):
             else:
                 add_select.configure(state="readonly")
             if chord_vars[1].get() == '5':
-                root_select.configure(state=DISABLED)
+                inversion_select.configure(state=DISABLED)
             else:
-                root_select.configure(state="readonly")
+                inversion_select.configure(state="readonly")
 
         # find notes in the searched chord
         def search_notes():
             chord = Chord(
-                chord_vars[0].get(), chord_vars[1].get(), chord_vars[2].get(), chord_vars[3].get(),
+                chord_vars[0].get(), chord_vars[1].get(),
+                sus_tone=int(chord_vars[2].get()),
+                add_tone=int(chord_vars[3].get()),
                 inversion=int(chord_vars[4].get())
             )
             note_list = [str(note) for note in chord.notes]
@@ -476,7 +472,9 @@ class Player(Tk):
             mixer.stop()
             search_notes()
             chord = Chord(
-                chord_vars[0].get(), chord_vars[1].get(), chord_vars[2].get(), chord_vars[3].get(),
+                chord_vars[0].get(), chord_vars[1].get(),
+                sus_tone=int(chord_vars[2].get()),
+                add_tone=int(chord_vars[3].get()),
                 inversion=int(chord_vars[4].get())
             )
             self.play_chord(chord, inst='piano', arpeggio=100)
@@ -484,7 +482,9 @@ class Player(Tk):
         # append the searched chord to the queue and the text of main window
         def add_chord_to_queue():
             chord = Chord(
-                chord_vars[0].get(), chord_vars[1].get(), chord_vars[2].get(), chord_vars[3].get(),
+                chord_vars[0].get(), chord_vars[1].get(),
+                sus_tone=int(chord_vars[2].get()),
+                add_tone=int(chord_vars[3].get()),
                 inversion=int(chord_vars[4].get())
             )
             self.queue.append(chord)
@@ -507,20 +507,20 @@ class Player(Tk):
             state="readonly", style="CB.TCombobox"
         )
         sus_select = ttk.Combobox(
-            window, width=2, values=sus_tones, textvariable=chord_vars[2], postcommand=check_option,
-            state="readonly", style="CB.TCombobox"
+            window, width=2, values=[str(tone) for tone in sus_tones], textvariable=chord_vars[2],
+            postcommand=check_option, state="readonly", style="CB.TCombobox"
         )
         add_select = ttk.Combobox(
-            window, width=2, values=add_tones, textvariable=chord_vars[3], postcommand=check_option,
-            state="readonly", style="CB.TCombobox"
+            window, width=2, values=[str(tone) for tone in add_tones], textvariable=chord_vars[3],
+            postcommand=check_option, state="readonly", style="CB.TCombobox"
         )
-        root_select = ttk.Combobox(
-            window, width=4, values=['0', '1', '2', '3'], textvariable=chord_vars[4], postcommand=check_option,
-            state="readonly", style="CB.TCombobox"
+        inversion_select = ttk.Combobox(
+            window, width=4, values=['0', '1', '2', '3'], textvariable=chord_vars[4],
+            postcommand=check_option, state="readonly", style="CB.TCombobox"
         )
         label_add = Label(window, text='add')
         label_sus = Label(window, text='sus')
-        label_root = Label(window, text='root:')
+        label_inversion = Label(window, text='inversion:')
         search_button = Button(window, text='검색', command=search_notes)
         play_button = Button(window, text='▶', width=3, command=play_searched_chord)
         plus_button = Button(window, text='+', width=3, command=add_chord_to_queue)
@@ -531,8 +531,8 @@ class Player(Tk):
         sus_select.grid(row=0, column=3)
         label_add.grid(row=0, column=4)
         add_select.grid(row=0, column=5)
-        label_root.grid(row=0, column=6)
-        root_select.grid(row=0, column=7)
+        label_inversion.grid(row=0, column=6)
+        inversion_select.grid(row=0, column=7)
         search_button.grid(row=0, column=8)
         play_button.grid(row=0, column=9)
         plus_button.grid(row=0, column=10)
@@ -761,10 +761,7 @@ class Player(Tk):
         for c in self.queue:
             if type(c) is Chord:
                 r = keys.index(c.key)
-                inv = None
-                if c.inversion:
-                    inv = keys[(keys.index(c.inversion) + k) % 12]
-                q.append(Chord(keys[(r + k) % 12], c.harmonic, c.sus_tone, c.add_tone, inv))
+                q.append(Chord(keys[(r + k) % 12], c.harmonic, c.sus_tone, c.add_tone, c.inversion))
             elif c == 'x':
                 q.append('x')
             elif c == '-':
@@ -824,15 +821,15 @@ class Player(Tk):
                         inversed_key = c[c.index('/') + 1:]
                         c = c[:c.index('/')]
                     if 'add' in c:
-                        c_add = c[c.index('add') + 3]
+                        c_add = c[c.index('add') + 3:]
                         c = c[:c.index('add')]
                     if 'sus' in c:
-                        c_sus = c[c.index('sus') + 3]
+                        c_sus = c[c.index('sus') + 3:]
                         c = c[:c.index('sus')]
                     c_harmonic = c
                 else:
                     c_harmonic = ''
-                chord = Chord(c_key, c_harmonic, c_sus, c_add)
+                chord = Chord(c_key, c_harmonic, int(c_sus), int(c_add))
                 if inversed_key:
                     try:
                         inversion = [str(note) for note in chord.notes].index(inversed_key)
