@@ -8,7 +8,7 @@ from tkinter import messagebox, font
 keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 intervals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
 major_scale = [0, 2, 4, 5, 7, 9, 11]
-minor_scale = [0, 2, 3, 5, 7, 8, 10]
+minor_scale = [0, 2, 3, 5, 7, 8, 10]  # natural minor scale
 pitches = []
 for i in range(2, 6):
     pitches += [k + str(i) for k in keys]
@@ -67,29 +67,26 @@ class PitchedNote(Note):
     def __init__(self, key: str, pitch: int):
         Note.__init__(self, key)
         self.pitch = pitch
+        self.freq = 16.35 * (2 ** (super().__int__() / 12)) * 2 ** self.pitch  # freq(Hz) in 12 temperament
 
     def __str__(self):
         return self.key + str(self.pitch)
 
     def __int__(self):
-        return int(super()) + self.pitch * 12
+        return super().__int__() + self.pitch * 12
 
     def __eq__(self, note):
         return self.key == note.key and self.pitch == note.pitch
 
     def __add__(self, n: int):
-        key = str(super().__add__(n))
-        pitch = self.pitch
-        if keys.index(key) < keys.index(self.key):
-            pitch += 1
-        return PitchedNote(key, pitch)
+        note = super().__add__(n)
+        pitch = self.pitch + n // 12 + int(super().__int__() > note.__int__())
+        return PitchedNote(note.key, pitch)
 
     def __sub__(self, n: int):
-        key = str(super().__sub__(n))
-        pitch = self.pitch
-        if keys.index(key) > keys.index(self.key):
-            pitch -= 1
-        return PitchedNote(key, pitch)
+        note = super().__sub__(n)
+        pitch = self.pitch - n // 12 - int(super().__int__() < note.__int__())
+        return PitchedNote(note.key, pitch)
 
     def play(self, inst='piano'):
         file = mixer.Sound(f'soundbank/{inst}/{str(self)}.wav')
