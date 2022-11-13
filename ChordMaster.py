@@ -214,6 +214,25 @@ class Chord(Note):
         return self.key == chord.key and self.harmonic == chord.harmonic and self.sus_tone == chord.sus_tone \
                and self.add_tone == chord.add_tone and self.inversion == chord.inversion
 
+    def __add__(self, n: int):
+        i = keys.index(self.key)
+        key = keys[(i + n) % 12]
+        return Chord(key, self.harmonic, self.sus_tone, self.add_tone, self.inversion)
+
+    def __sub__(self, n: int):
+        i = keys.index(self.key)
+        key = keys[(i - n) % 12]
+        return Chord(key, self.harmonic, self.sus_tone, self.add_tone, self.inversion)
+
+    def pitched_notes(self, octave: int = 4):
+        first = self.notes[0].get_pitched(octave)
+        pitched_note_lst = [first]
+        for n in range(1, len(self.notes)):
+            if int(self.notes[n]) < int(self.notes[n - 1]):
+                octave += 1
+            pitched_note_lst.append(self.notes[n].get_pitched(octave))
+        return pitched_note_lst
+
 
 class IntervalChord(Chord):
     def __init__(self, fundamental: Chord, key, harmonic: str, inversion: int = 0):
@@ -252,16 +271,6 @@ for key in keys:
         if harmonic not in ['aug', 'dim', 'dim7', '5']:
             for add in add_tones[1:]:
                 chords.append(Chord(key, harmonic, add_tone=add))
-
-
-def form_chord_in_piano(notes: list[Note], octave: int = 4):
-    first = notes[0].get_pitched(octave)
-    chord_form = [first]
-    for n in range(1, len(notes)):
-        if int(notes[n]) < int(notes[n - 1]):
-            octave += 1
-        chord_form.append(notes[n].get_pitched(octave))
-    return chord_form
 
 
 def key_to_interval(chord_lst: list[Chord], root_chord: Chord = None):
@@ -738,7 +747,7 @@ class Player(Tk):
     # play notes in Chord
     def play_chord(self, chord: Chord, inst='piano', arpeggio: int = 0):
         delay = abs(arpeggio)
-        pitched_notes = form_chord_in_piano(chord.notes)
+        pitched_notes = chord.pitched_notes(octave=4)
         if arpeggio < 0:
             pitched_notes.reverse()
         self.play_notes(pitched_notes, 0, delay, inst=inst)
