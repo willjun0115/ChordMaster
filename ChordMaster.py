@@ -67,7 +67,8 @@ class PitchedNote(Note):
     def __init__(self, key: str, pitch: int):
         Note.__init__(self, key)
         self.pitch = pitch
-        self.freq = 16.35 * (2 ** (super().__int__() / 12)) * 2 ** self.pitch  # freq(Hz) in 12 temperament
+        # freq(Hz) in 12 temperament
+        self.freq = 440.0 * (2 ** ((super().__int__() - 9) / 12)) * 2 ** (self.pitch - 4)
 
     def __str__(self):
         return self.key + str(self.pitch)
@@ -268,6 +269,39 @@ for key in keys:
         if harmonic not in ['aug', 'dim', 'dim7', '5']:
             for add in add_tones[1:]:
                 chords.append(Chord(key, harmonic, add_tone=add))
+
+
+def str_to_chord(chord_str: str):
+    inversed_key = None
+    add = 0
+    sus = 0
+    if len(chord_str) > 1 and chord_str[1] in ['#', 'b']:
+        key = chord_str[0:2]
+        chord_str = chord_str[2:]
+    else:
+        key = chord_str[0]
+        chord_str = chord_str[1:]
+    if len(chord_str) > 0:
+        if '/' in chord_str:
+            inversed_key = chord_str[chord_str.index('/') + 1:]
+            chord_str = chord_str[:chord_str.index('/')]
+        if 'add' in chord_str:
+            add = int(chord_str[chord_str.index('add') + 3:])
+            chord_str = chord_str[:chord_str.index('add')]
+        if 'sus' in chord_str:
+            sus = int(chord_str[chord_str.index('sus') + 3:])
+            chord_str = chord_str[:chord_str.index('sus')]
+        harmonic = chord_str
+    else:
+        harmonic = ''
+    chord = Chord(key, harmonic, sus, add)
+    if inversed_key:
+        try:
+            inversion = [str(note) for note in chord.notes].index(inversed_key)
+            chord = Chord(chord.key, chord.harmonic, chord.sus_tone, chord.add_tone, inversion)
+        except:
+            return -1
+    return chord
 
 
 def key_to_interval(chord_lst: list[Chord], root_chord: Chord = None):
@@ -813,36 +847,11 @@ class Player(Tk):
             elif c == 'x':
                 q.append('x')
             else:
-                c_sus = None
-                c_add = None
-                inversed_key = None
-                if len(c) > 1 and c[1] in ['#', 'b']:
-                    c_key = c[0:2]
-                    c = c[2:]
+                chord = str_to_chord(c)
+                if chord == -1:
+                    messagebox.showerror('Error', 'Invalid Inversion')
                 else:
-                    c_key = c[0]
-                    c = c[1:]
-                if c:
-                    if '/' in c:
-                        inversed_key = c[c.index('/') + 1:]
-                        c = c[:c.index('/')]
-                    if 'add' in c:
-                        c_add = c[c.index('add') + 3:]
-                        c = c[:c.index('add')]
-                    if 'sus' in c:
-                        c_sus = c[c.index('sus') + 3:]
-                        c = c[:c.index('sus')]
-                    c_harmonic = c
-                else:
-                    c_harmonic = ''
-                chord = Chord(c_key, c_harmonic, int(c_sus), int(c_add))
-                if inversed_key:
-                    try:
-                        inversion = [str(note) for note in chord.notes].index(inversed_key)
-                        chord = Chord(chord.key, chord.harmonic, chord.sus_tone, chord.add_tone, inversion)
-                    except:
-                        messagebox.showerror('Error', 'Invalid Inversion')
-                q.append(chord)
+                    q.append(chord)
         self.queue = q
 
 
