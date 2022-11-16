@@ -209,8 +209,11 @@ class Chord(Note):
         return c_name
 
     def __eq__(self, chord):
-        return self.key == chord.key and self.harmonic == chord.harmonic and self.sus_tone == chord.sus_tone \
-               and self.add_tone == chord.add_tone and self.inversion == chord.inversion
+        if type(chord) == Chord:
+            return self.key == chord.key and self.harmonic == chord.harmonic and self.sus_tone == chord.sus_tone \
+                and self.add_tone == chord.add_tone and self.inversion == chord.inversion
+        else:
+            return False
 
     def __add__(self, n: int):
         i = keys.index(self.key)
@@ -231,24 +234,32 @@ class Chord(Note):
             pitched_note_lst.append(self.notes[n].get_pitched(octave))
         return pitched_note_lst
 
+    def as_interval(self, fundamental: Note, mode: str):
+        semitone = (keys.index(self.key) - int(fundamental)) % 12
+        if mode == 'minor':
+            degree = minor_scale.index(semitone)
+        else:
+            degree = major_scale.index(semitone)
+        return IntervalChord(degree, self.harmonic, self.inversion)
+
 
 class IntervalChord(Chord):
-    def __init__(self, fundamental: Chord, key, harmonic: str, inversion: int = 0):
-        self.fundamental = fundamental
-        self.semitone = (keys.index(key) - int(fundamental)) % 12
-        rebased_key = keys[self.semitone]  # interval key with root C
-        Chord.__init__(self, rebased_key, harmonic, 0, 0, inversion)
-        if fundamental.mode == 'minor':
-            self.interval = minor_scale.index(self.semitone)
+    def __init__(self, degree: int, harmonic: str, inversion: int = 0):
+        self.degree = degree
+        if harmonic.startswith('m') or harmonic.startswith('dim'):
+            self.mode = 'minor'
         else:
-            self.interval = major_scale.index(self.semitone)
+            self.mode = 'Major'
+        if self.mode == 'minor':
+            key = keys[minor_scale[degree]]
+        else:
+            key = keys[major_scale[degree]]
+        Chord.__init__(self, key, harmonic)
 
     def __str__(self):
-        c_name = ''
+        c_name = intervals[self.degree]
         if self.mode == 'minor':
-            c_name += intervals[self.interval].lower()
-        else:
-            c_name = intervals[self.interval]
+            c_name = c_name.lower()
         if self.harmonic.startswith('m'):
             c_name += self.harmonic[1:]
         else:
@@ -311,7 +322,7 @@ def key_to_interval(chord_lst: list[Chord], root_chord: Chord = None):
     for c in chord_lst[0:]:
         if c and type(c) == Chord:
             try:
-                interval_lst.append(IntervalChord(root_chord, c.key, c.harmonic, c.inversion))
+                interval_lst.append(c.as_interval(root_chord.root_note, root_chord.mode))
             except:
                 interval_lst.append('x')
     return interval_lst
