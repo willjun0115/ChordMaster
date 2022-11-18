@@ -34,7 +34,10 @@ class Note:
         return keys.index(self.key)
 
     def __eq__(self, note):
-        return self.key == note.key
+        if type(note) == Note:
+            return self.key == note.key
+        else:
+            return False
 
     def __add__(self, n: int):
         i = keys.index(self.key)
@@ -45,6 +48,12 @@ class Note:
         i = keys.index(self.key)
         key = keys[(i - n) % 12]
         return Note(key)
+
+    def __iadd__(self, n: int):
+        return self.__add__(n)
+
+    def __isub__(self, n: int):
+        return self.__sub__(n)
 
     def get_interval(self, i: int, mode: str = 'Major'):
         r = keys.index(self.key)
@@ -77,7 +86,10 @@ class PitchedNote(Note):
         return super().__int__() + self.pitch * 12
 
     def __eq__(self, note):
-        return self.key == note.key and self.pitch == note.pitch
+        if type(note) == PitchedNote:
+            return self.key == note.key and self.pitch == note.pitch
+        else:
+            return False
 
     def __add__(self, n: int):
         note = super().__add__(n)
@@ -255,6 +267,7 @@ class IntervalChord(Chord):
         else:
             key = keys[major_scale[degree]]
         Chord.__init__(self, key, harmonic)
+        self.notes = [int(n) for n in self.notes]
 
     def __str__(self):
         c_name = intervals[self.degree]
@@ -292,26 +305,36 @@ def str_to_chord(chord_str: str):
     else:
         key = chord_str[0]
         chord_str = chord_str[1:]
-    if len(chord_str) > 0:
-        if '/' in chord_str:
-            inversed_key = chord_str[chord_str.index('/') + 1:]
-            chord_str = chord_str[:chord_str.index('/')]
-        if 'add' in chord_str:
-            add = int(chord_str[chord_str.index('add') + 3:])
-            chord_str = chord_str[:chord_str.index('add')]
-        if 'sus' in chord_str:
-            sus = int(chord_str[chord_str.index('sus') + 3:])
-            chord_str = chord_str[:chord_str.index('sus')]
-        harmonic = chord_str
+    if key.upper() in intervals:
+        degree = intervals.index(key.upper())
+        if len(chord_str) > 0:
+            harmonic = chord_str
+        else:
+            harmonic = ''
+        if key not in intervals and not harmonic.startswith('dim'):
+            harmonic = 'm' + harmonic
+        chord = IntervalChord(degree, harmonic)
     else:
-        harmonic = ''
-    chord = Chord(key, harmonic, sus, add)
-    if inversed_key:
-        try:
-            inversion = [str(note) for note in chord.notes].index(inversed_key)
-            chord = Chord(chord.key, chord.harmonic, chord.sus_tone, chord.add_tone, inversion)
-        except:
-            return -1
+        if len(chord_str) > 0:
+            if '/' in chord_str:
+                inversed_key = chord_str[chord_str.index('/') + 1:]
+                chord_str = chord_str[:chord_str.index('/')]
+            if 'add' in chord_str:
+                add = int(chord_str[chord_str.index('add') + 3:])
+                chord_str = chord_str[:chord_str.index('add')]
+            if 'sus' in chord_str:
+                sus = int(chord_str[chord_str.index('sus') + 3:])
+                chord_str = chord_str[:chord_str.index('sus')]
+            harmonic = chord_str
+        else:
+            harmonic = ''
+        chord = Chord(key, harmonic, sus, add)
+        if inversed_key:
+            try:
+                inversion = [str(note) for note in chord.notes].index(inversed_key)
+                chord = Chord(chord.key, chord.harmonic, chord.sus_tone, chord.add_tone, inversion)
+            except:
+                return -1
     return chord
 
 
@@ -799,7 +822,7 @@ class Player(Tk):
         try:
             notes[n].play(inst=inst)
         except:
-            messagebox.showerror('Error', f"Failed to play file '{notes[n]}.wav'")
+            messagebox.showerror('Error', f"Failed to play file '{inst}/{notes[n]}.wav'")
         else:
             n += 1
             if n < len(notes):
