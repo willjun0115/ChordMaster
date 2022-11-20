@@ -838,7 +838,7 @@ class Player(Tk):
                 q.append(Chord(keys[(r + k) % 12], c.harmonic, c.sus_tone, c.add_tone, c.inversion))
             elif c == 'x':
                 q.append('x')
-            elif c == '-':
+            elif c is None:
                 q.append(None)
         self.queue = q
         r_key = self.root_key.get()
