@@ -125,10 +125,9 @@ class Chord(Note):
             self.sus_tone = 0
 
         self.add_tone = 0
-        if self.harmonic not in ['aug', 'dim', 'dim7', '5']:
-            if add_tone in add_tones:
-                if not (sus_tone in [2, 4] and add_tone in [sus_tone, sus_tone+7]):
-                    self.add_tone = add_tone
+        if self.harmonic not in ['aug', 'dim', 'dim7', '5'] and add_tone in add_tones:
+            if not (sus_tone in [2, 4] and add_tone in [sus_tone, sus_tone+7]):
+                self.add_tone = add_tone
 
         if self.harmonic == '5':
             self.inversion = 0
@@ -236,6 +235,13 @@ class Chord(Note):
         i = keys.index(self.key)
         key = keys[(i - n) % 12]
         return Chord(key, self.harmonic, self.sus_tone, self.add_tone, self.inversion)
+
+    def play(self, inst='piano', arpeggio: int = 0):
+        delay = abs(arpeggio)
+        pitched_notes = self.pitched_notes(octave=4)
+        if arpeggio < 0:
+            pitched_notes.reverse()
+        play_notes(pitched_notes, 0, delay, inst=inst)
 
     def pitched_notes(self, octave: int = 4):
         first = self.notes[0].get_pitched(octave)
@@ -382,6 +388,18 @@ def find_chord(notes: list[str]):
     if len(results) == 0:
         results = sub_results
     return results
+
+
+# play notes in list recursively
+def play_notes(notes: list[PitchedNote], n: int, delay: int, inst='piano'):
+    try:
+        notes[n].play(inst=inst)
+    except:
+        messagebox.showerror('Error', f"Failed to play file '{inst}/{notes[n]}.wav'")
+    else:
+        n += 1
+        if n < len(notes):
+            root.after(delay, lambda: play_notes(notes, n, delay, inst=inst))
 
 
 class Player(Tk):
@@ -551,7 +569,7 @@ class Player(Tk):
                 add_tone=int(chord_vars[3].get()),
                 inversion=int(chord_vars[4].get())
             )
-            self.play_chord(chord, inst='piano', arpeggio=100)
+            chord.play(inst='piano', arpeggio=100)
 
         # append the searched chord to the queue and the text of main window
         def add_chord_to_queue():
@@ -652,7 +670,7 @@ class Player(Tk):
                     tunes.append(None)
             notes.reverse()
             mixer.stop()
-            self.play_notes(notes, 0, 100, inst='steel guitar')
+            play_notes(notes, 0, 100, inst='steel guitar')
 
         # find appropriate chord from marked notes on fretboard
         def find_suited_chord():
@@ -744,7 +762,7 @@ class Player(Tk):
         # key bindings
         for i in range(0, 36):
             pitch = PitchedNote(keys[i % 12], i // 12 + 4)
-            window.bind(keybinds[i], lambda event, pitch=pitch: self.play_notes([pitch], 0, 100, inst="piano"))
+            window.bind(keybinds[i], lambda event, pitch=pitch: pitch.play())
 
         keyboard = Frame(window)
         keyboard.grid(row=1, column=0, columnspan=20)
@@ -754,7 +772,7 @@ class Player(Tk):
                 pitch = PitchedNote(k, i)
                 key_button = Button(
                     keyboard, width=1, height=5, text=str(pitch), bg='white', activebackground='gray',
-                    command=lambda pitch=pitch: self.play_notes([pitch], 0, 100, inst="piano")
+                    command=lambda pitch=pitch: pitch.play()
                 )
                 key_button.grid(row=0, column=2 * (j + (i - 4) * 7), rowspan=2, columnspan=2)
         for i in range(4, 7):
@@ -764,7 +782,7 @@ class Player(Tk):
                     pitch = PitchedNote(k, i)
                     key_button = Button(
                         keyboard, width=1, height=3, text=str(pitch), bg='black', activebackground='gray',
-                        command=lambda pitch=pitch: self.play_notes([pitch], 0, 100, inst="piano")
+                        command=lambda pitch=pitch: pitch.play()
                     )
                     key_button.grid(row=0, column=2 * (j + (i - 4) * 7) + 1, rowspan=1, columnspan=2)
 
@@ -799,7 +817,7 @@ class Player(Tk):
             try:
                 if type(self.queue[n]) is Chord:
                     mixer.stop()
-                    self.play_chord(self.queue[n], arpeggio=50)
+                    self.queue[n].play(arpeggio=50)
                 elif self.queue[n] == 'x':
                     mixer.stop()
             except self.queue == []:
@@ -808,25 +826,6 @@ class Player(Tk):
                 self.stop_queue()
             finally:
                 root.after(delay, lambda: self.play_queue(n + 1, delay))
-
-    # play notes in Chord
-    def play_chord(self, chord: Chord, inst='piano', arpeggio: int = 0):
-        delay = abs(arpeggio)
-        pitched_notes = chord.pitched_notes(octave=4)
-        if arpeggio < 0:
-            pitched_notes.reverse()
-        self.play_notes(pitched_notes, 0, delay, inst=inst)
-
-    # play notes in list recursively
-    def play_notes(self, notes: list[PitchedNote], n: int, delay: int, inst='piano'):
-        try:
-            notes[n].play(inst=inst)
-        except:
-            messagebox.showerror('Error', f"Failed to play file '{inst}/{notes[n]}.wav'")
-        else:
-            n += 1
-            if n < len(notes):
-                root.after(delay, lambda: self.play_notes(notes, n, delay, inst=inst))
 
     # change key of all Chord in queue by k
     def change_key(self, k: int):
